@@ -1,0 +1,10 @@
+services:
+  app-kampus:
+    build: .
+    container_name: scanner-kampus-app
+    # KUNCI RAHASIA UNTUK LINUX:
+    network_mode: "host" 
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    restart: unless-stopped

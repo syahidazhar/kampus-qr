@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistem Inventaris Kampus</title>
+    <script src="/html5-qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #f0f2f5; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 15px; }
+        button { background: #007bff; color: white; border: none; padding: 12px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px;}
+        input { width: 100%; padding: 12px; margin-top: 5px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px;}
+        
+        /* TAMPILAN PC */
+        #pc-view { display: none; max-width: 800px; margin: 40px auto; }
+        .pc-dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
+        .pc-col { flex: 1; min-width: 300px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        
+        /* TAMPILAN MOBILE */
+        #mobile-view { display: none; padding-bottom: 30px;}
+        .tabs { display: flex; background: #007bff; color: white; position: sticky; top: 0; z-index: 10;}
+        .tab { flex: 1; text-align: center; padding: 15px; cursor: pointer; font-weight: bold; opacity: 0.7; transition: 0.3s; }
+        .tab.active { opacity: 1; border-bottom: 4px solid white; }
+        
+        #reader-container { width: 100%; max-width: 500px; margin: auto; border-radius: 10px; overflow: hidden; background: #000; display: none; }
+        #mobile-result { margin: 15px; padding: 15px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-radius: 8px; display: none; word-wrap: break-word;}
+        
+        /* TOAST PASTEL */
+        #toast { visibility: hidden; position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 30px; z-index: 9999; text-align: center; font-size: 14px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.08); backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.4s ease-in-out, visibility 0.4s; pointer-events: none; width: max-content; max-width: 80%;}
+        #toast.show { visibility: visible; opacity: 1; }
+        .toast-success { background: rgba(232, 245, 233, 0.9); color: #2e7d32; border: 1px solid #c8e6c9; }
+        .toast-error { background: rgba(255, 235, 238, 0.9); color: #c62828; border: 1px solid #ffcdd2; }
+        .toast-warning { background: rgba(255, 243, 224, 0.9); color: #ef6c00; border: 1px solid #ffe0b2; }
+
+        .badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; color: white; float: right; margin-top: 2px;}
+        .bg-inc { background: #17a2b8; }
+        .bg-uni { background: #dc3545; }
+        .bg-gen { background: #6c757d; }
+    </style>
+</head>
+<body>
+
+    <div id="toast">Notifikasi</div>
+
+    <!-- ========================================================= -->
+    <!-- VIEW UNTUK PC (DASHBOARD KONEKSI & INFO)                  -->
+    <!-- ========================================================= -->
+    <div id="pc-view">
+        <h2 style="text-align: center; color: #007bff;">🖥️ Command Center Inventaris</h2>
+        <div class="pc-dashboard">
+            <!-- Bagian Kiri: QR Pintu Masuk -->
+            <div class="pc-col">
+                <h3>Portal Akses HP</h3>
+                <p style="color:#666; font-size:14px;">Scan dengan kamera HP untuk masuk ke sistem.</p>
+                <img id="qr-connect" src="" alt="Loading..." style="width: 220px; height: 220px; border: 5px solid #f0f2f5; border-radius: 10px;">
+                <p style="background: #e7f3ff; color: #007bff; padding: 10px; border-radius: 5px; font-family: monospace; font-weight:bold;" id="lan-url">Memuat IP...</p>
+                <div style="background: #fff5f5; border-left: 4px solid #ff4d4d; padding: 10px; text-align: left; font-size: 13px;">
+                    <b>⚠️ Jika muncul "Not Secure" di HP:</b><br>Klik <i>Advanced</i> (Lanjutan) &rarr; <i>Proceed</i> (Lanjutkan).
+                </div>
+            </div>
+
+            <!-- Bagian Kanan: Info Kolom Terdeteksi dari Excel -->
+            <div class="pc-col" style="text-align: left;">
+                <h3>📊 Struktur Kolom Excel</h3>
+                <p style="color:#666; font-size:14px;">Terdeteksi otomatis dari <kbd>database.xlsx</kbd>:</p>
+                <div id="pc-schema-info" style="max-height: 300px; overflow-y: auto; padding-right: 10px;">
+                    <!-- Diisi via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================================= -->
+    <!-- VIEW UNTUK MOBILE (SCANNER & FORM)                        -->
+    <!-- ========================================================= -->
+    <div id="mobile-view">
+        <div class="tabs">
+            <div class="tab active" id="tab-baca" onclick="switchTab('baca')">📖 BACA</div>
+            <div class="tab" id="tab-tulis" onclick="switchTab('tulis')">✍️ TULIS</div>
+        </div>
+
+        <div class="card" style="text-align: center; padding-bottom: 10px;">
+            <button id="btn-start-cam" onclick="startScanner()" style="background: #28a745; font-size: 16px;">📸 BUKA KAMERA SCANNER</button>
+            <button id="btn-stop-cam" onclick="stopScanner()" style="background: #dc3545; display: none;">Tutup Kamera Scanner</button>
+            <div id="reader-container" style="margin-top: 15px;"><div id="reader"></div></div>
+        </div>
+
+        <div id="mobile-result"></div>
+
+        <div id="form-tulis-container" class="card" style="display: none;">
+            <h3 style="margin-top:0; border-bottom: 2px solid #f0f2f5; padding-bottom: 10px;">Isi Form</h3>
+            <div id="dynamic-form">Loading Form...</div>
+            <button onclick="promptAddColumn()" style="background: #6c757d; margin-top: 20px;">+ Tambah Kolom Baru (Ke Excel)</button>
+        </div>
+    </div>
+
+    <script>
+        // DETEKSI DEVICE: true jika HP, false jika PC
+        let isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        let globalSchema =[];
+        let html5QrCode = null;
+        let currentMode = 'baca';
+        let isScanningLocked = false; 
+
+        // INIT APLIKASI BERDASARKAN DEVICE
+        window.onload = async () => {
+            if (!isMobile) {
+                document.getElementById('pc-view').style.display = 'block';
+                await loadConnectionQR();
+                await fetchSchema();
+            } else {
+                document.getElementById('mobile-view').style.display = 'block';
+                await fetchSchema();
+            }
+        };
+
+        // ==========================================
+        // LOGIKA KHUSUS PC
+        // ==========================================
+        async function loadConnectionQR() {
+            try {
+                const res = await fetch('/api/get-connection-qr');
+                const data = await res.json();
+                document.getElementById('qr-connect').src = data.qrImage;
+                document.getElementById('lan-url').innerText = data.url;
+            } catch(e) { console.error("Gagal load QR", e); }
+        }
+
+        function renderPcSchemaInfo() {
+            const container = document.getElementById('pc-schema-info');
+            container.innerHTML = '';
+            globalSchema.forEach(col => {
+                let badge = "", icon = "";
+                if(col.behavior === 'incremental') { badge = "<span class='badge bg-inc'>ID Incremental</span>"; icon = "🔢"; }
+                if(col.behavior === 'unique') { badge = "<span class='badge bg-uni'>Unik / OCR</span>"; icon = "📷"; }
+                if(col.behavior === 'general') { badge = "<span class='badge bg-gen'>Massal</span>"; icon = "📝"; }
+
+                container.innerHTML += `
+                    <div style="padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: bold; color:#444;">${icon} ${col.name}</span>
+                        ${badge}
+                    </div>
+                `;
+            });
+        }
+
+
+        // ==========================================
+        // LOGIKA UMUM & MOBILE
+        // ==========================================
+        async function fetchSchema() {
+            const res = await fetch('/api/schema');
+            const data = await res.json();
+            globalSchema = data.schema;
+            
+            if (!isMobile) {
+                renderPcSchemaInfo(); // Render info di PC
+            } else {
+                renderMobileForm(data.incrementalCounters); // Render form di HP
+            }
+        }
+
+        function renderMobileForm(counters) {
+            const container = document.getElementById('dynamic-form');
+            container.innerHTML = '';
+            
+            globalSchema.forEach(col => {
+                let badge = "", placeholder = "", bgColor = "#fff", val = "";
+                let cvButtonHtml = ""; 
+                
+                if(col.behavior === 'incremental') { 
+                    badge = "<span class='badge bg-inc'>Otomatis +1</span>"; bgColor = "#f0f8ff"; val = counters[col.name] || 1;
+                }
+                if(col.behavior === 'unique') { 
+                    badge = "<span class='badge bg-uni'>1x Scan & Reset</span>"; placeholder = "Otomatis hapus jika beres"; bgColor = "#fff0f0"; 
+                    cvButtonHtml = `<button type="button" onclick="openCvCamera('${col.name}')" style="background:#17a2b8; padding: 10px; margin-top:5px; margin-bottom: 5px; font-size:14px; border-radius:5px;">📷 Auto-Extract Teks (Difoto)</button>`;
+                }
+                if(col.behavior === 'general') { 
+                    badge = "<span class='badge bg-gen'>Massal</span>"; placeholder = "Ketik nilai..."; 
+                }
+
+                container.innerHTML += `
+                    <div style="margin-bottom: 15px; text-align: left; padding: 10px; border: 1px solid #eee; border-radius: 8px;">
+                        <label style="font-weight: bold; color: #444; display: block; margin-bottom: 5px;">
+                            ${col.name} ${badge}
+                        </label>
+                        <input type="text" id="input_${col.name}" placeholder="${placeholder}" style="background: ${bgColor}" value="${val}">
+                        ${cvButtonHtml}
+                    </div>
+                `;
+            });
+
+            // Input hidden native camera untuk OCR
+            if (!document.getElementById('cv-camera-input')) {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.capture = 'environment'; 
+                fileInput.id = 'cv-camera-input';
+                fileInput.style.display = 'none';
+                document.body.appendChild(fileInput);
+            }
+        }
+
+        async function promptAddColumn() {
+            const newCol = prompt("Ketik nama kolom baru:\n(Beri kata 'id' utk Incremental, atau 'seri/serial' utk Unik/OCR)");
+            if (!newCol) return;
+            
+            const res = await fetch('/api/add-column', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ column_name: newCol })
+            });
+            const data = await res.json();
+            
+            showToast(data.message, data.status === 'error' ? 'error' : 'success');
+            if(data.status === 'success') fetchSchema();
+        }
+
+        function showToast(msg, type = 'success') {
+            const t = document.getElementById("toast");
+            t.innerText = msg;
+            t.className = `show toast-${type}`;
+            setTimeout(() => t.className = "", 2500); 
+        }
+
+        // --- COMPUTER VISION (OCR) ---
+        let currentTargetCol = "";
+        function openCvCamera(colName) {
+            currentTargetCol = colName;
+            const fileInput = document.getElementById('cv-camera-input');
+            fileInput.onchange = handleCvPhoto;
+            fileInput.click(); 
+        }
+
+        async function handleCvPhoto(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showToast("Sedang mengekstrak foto di PC...", "warning");
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                try {
+                    const res = await fetch('/api/extract-cv', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageBase64: reader.result })
+                    });
+                    const data = await res.json();
+
+                    if (data.status === 'success') {
+                        document.getElementById(`input_${currentTargetCol}`).value = data.extracted_text;
+                        showToast("Berhasil mendapat teks!", "success");
+                    } else {
+                        showToast(`Gagal: ${data.message}`, "error");
+                    }
+                } catch (e) {
+                    showToast("Gagal kirim ke server", "error");
+                }
+                event.target.value = '';
+            };
+        }
+
+        // --- QR SCANNER ---
+        function switchTab(mode) {
+            currentMode = mode;
+            document.getElementById('tab-baca').className = mode === 'baca' ? 'tab active' : 'tab';
+            document.getElementById('tab-tulis').className = mode === 'tulis' ? 'tab active' : 'tab';
+            document.getElementById('form-tulis-container').style.display = mode === 'tulis' ? 'block' : 'none';
+            document.getElementById('mobile-result').style.display = 'none';
+        }
+
+        async function startScanner() {
+            document.getElementById('btn-start-cam').style.display = 'none';
+            document.getElementById('btn-stop-cam').style.display = 'block';
+            document.getElementById('reader-container').style.display = 'block';
+
+            html5QrCode = new Html5Qrcode("reader");
+            await html5QrCode.start( { facingMode: "environment" }, { fps: 10, qrbox: 250 }, onQrScanned );
+        }
+
+        function stopScanner() {
+            if(html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('btn-start-cam').style.display = 'block';
+                    document.getElementById('btn-stop-cam').style.display = 'none';
+                    document.getElementById('reader-container').style.display = 'none';
+                });
+            }
+        }
+
+        async function onQrScanned(qrCode) {
+            if (isScanningLocked) return;
+            isScanningLocked = true; 
+            if (navigator.vibrate) navigator.vibrate(100);
+
+            if (currentMode === 'baca') await processReadMode(qrCode);
+            else await processWriteMode(qrCode);
+
+            setTimeout(() => { isScanningLocked = false; }, 2000);
+        }
+
+        async function processReadMode(qrCode) {
+            try {
+                const res = await fetch(`/api/read/${qrCode}`);
+                const data = await res.json();
+                const resultDiv = document.getElementById('mobile-result');
+                resultDiv.style.display = 'block';
+                
+                if (data.status === 'found') {
+                    let html = `<div style="font-size:18px; color:#444; text-align:center; margin-bottom:10px; border-bottom: 1px solid #ddd; padding-bottom:5px;"><b>${qrCode}</b></div>`;
+                    globalSchema.forEach(col => {
+                        let val = data.data[col.name] || '<i style="color:#aaa;">Kosong</i>';
+                        html += `<div style="margin-bottom:5px; font-size: 15px;"><b>${col.name}:</b> ${val}</div>`;
+                    });
+                    resultDiv.innerHTML = html;
+                    showToast("Data Ditemukan!", "success"); 
+                } else {
+                    resultDiv.innerHTML = `<span style='color:#c62828; font-weight:bold;'>⚠️ QR "${qrCode}" Ditolak (Ilegal)</span>`;
+                    showToast("QR Tidak Valid!", "error");
+                }
+            } catch(e) { showToast("Gagal Terhubung", "error"); }
+        }
+
+        async function processWriteMode(qrCode) {
+            let payload = {};
+            let isUniqueFilled = false;
+            let uniqueInputIds =[];
+
+            globalSchema.forEach(col => {
+                let inputEl = document.getElementById(`input_${col.name}`);
+                payload[col.name] = inputEl.value;
+
+                if (col.behavior === 'unique' && inputEl.value.trim() !== '') {
+                    isUniqueFilled = true;
+                    uniqueInputIds.push(inputEl.id);
+                }
+            });
+
+            try {
+                const res = await fetch('/api/write', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ qr_code: qrCode, payload })
+                });
+                const responseData = await res.json();
+                
+                const resultDiv = document.getElementById('mobile-result');
+                resultDiv.style.display = 'block';
+
+                if (responseData.status === 'error') {
+                    showToast(responseData.message, "error");
+                    resultDiv.innerHTML = `<span style='color:#c62828; font-weight:bold;'>⚠️ ERROR: QR "${qrCode}" Ilegal</span>`;
+                    stopScanner(); 
+                    return; 
+                }
+
+                if (responseData.status === 'success') {
+                    const changes = responseData.changes;
+                    
+                    globalSchema.forEach(col => {
+                        if (col.behavior === 'incremental') {
+                            document.getElementById(`input_${col.name}`).value = responseData.incrementalCounters[col.name];
+                        }
+                    });
+
+                    let html = `<div style="font-size:16px; color:#444; text-align:center; margin-bottom:10px; border-bottom: 2px solid #ccc; padding-bottom: 5px;"><b>Hasil Scan: ${qrCode}</b></div>`;
+                    
+                    if (changes.length === 0) {
+                        html += `<div style="color: #666; text-align:center;"><i>Tidak ada data form yang diisi</i></div>`;
+                    } else {
+                        changes.forEach(item => {
+                            let color = '#6c757d'; let icon = '➖';
+                            if (item.status === 'added') { color = '#2e7d32'; icon = '➕'; }
+                            if (item.status === 'updated') { color = '#ef6c00'; icon = '🔄'; }
+                            if (item.status === 'skipped') { color = '#c62828'; icon = '🚫'; }
+
+                            html += `
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 6px; background: #fafafa; border-radius: 5px; border-left: 3px solid ${color};">
+                                    <span style="font-weight:bold; color:#333;">${item.col}</span>
+                                    <span style="color: ${color}; font-size: 14px;">${icon} ${item.text}</span>
+                                </div>
+                            `;
+                        });
+                    }
+                    resultDiv.innerHTML = html;
+
+                    if (isUniqueFilled && responseData.isUpdated) {
+                        uniqueInputIds.forEach(id => document.getElementById(id).value = '');
+                        stopScanner();
+                        showToast(`Data Masuk. Serial reset!`, "success");
+                    } else if (!responseData.isUpdated) {
+                        showToast(`Data Sama / Dilewati!`, "warning");
+                    } else {
+                        showToast(`Pembaruan Berhasil!`, "success");
+                    }
+                }
+            } catch (err) { showToast("Koneksi Error", "error"); }
+        }
+    </script>
+</body>
+</html>
