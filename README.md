@@ -1,10 +1,3 @@
-
-
-
-Tentu! Ini adalah *template* dokumentasi `README.md` berstandar GitHub profesional yang bisa langsung Anda masukkan ke dalam *root* folder project Anda. 
-
-Dokumentasi ini ditulis dengan bahasa yang teknis namun mudah dipahami, menjelaskan arsitektur, alasan di balik setiap keputusan sistem, hingga panduan penggunaan.
-
 ***
 
 # 📦 Sistem Inventaris Kampus Berbasis LAN (QR & OCR)
