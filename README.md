@@ -83,7 +83,7 @@ Sistem ini menggunakan Docker, sehingga komputer *Server* tidak perlu dipenuhi o
 2. Buka **Command Prompt (CMD) / PowerShell** atau Terminal bawaan *Operating System*, lalu arahkan ke dalam folder *project* tersebut.
 3. Jalankan perintah ajaib ini:
    ```bash
-   docker-compose up -d --build
+   sudo docker compose up -d --build
    ```
 4. Tunggu beberapa saat (Docker akan membangun lingkungan sistem Anda secara otomatis).
 5. Setelah selesai, buka *browser* di PC Anda dan akses: `https://localhost:3000`.
